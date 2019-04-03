@@ -102,3 +102,13 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# output pandoc
+
+*.pdf
+*.docx
+
+# cache temp
+
+/temp/**/*.json
+/cache/**/*.json
