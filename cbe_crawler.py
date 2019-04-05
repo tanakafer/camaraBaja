@@ -583,7 +583,7 @@ try:
         saveJSON(OUTPUT_PATH, output, out)
         # CSV Output
         saveCSV(OUTPUT_PATH, output, out)
-    # remove_cache()
+    remove_cache()
     print ("Finished Web scraping")
 except:
     print ("Webscraping Error: %s" % str(sys.exc_info()))
