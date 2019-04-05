@@ -17,9 +17,10 @@ docker run --name temppandoc -v \
           --variable titlepage-rule-color="000078" \
           --variable titlepage-rule-height=2 \
           --variable uoc="images/logo-uoc-default.png" \
-          --variable logo="images/candidates.png" \
+          --variable logo="images/cbe.png" \
           --variable header-right="Fernando Rodríguez López" \
           --variable footer-left="08/04/2018" \
+          --variable colorlinks=true \
           -f markdown \
           -t latex  README.md \
           --template uoc.tex \
@@ -30,13 +31,13 @@ echo "Creado fihero pdf"
 
 
 # Creamos el fichero docx
-docker run --name temppandoc -v \
-          "$directory":/source jagregory/pandoc \
-          -f markdown \
-          -t docx README.md \
-          -o $output.docx
-docker rm temppandoc
-echo "Creado fihero docx"
+# docker run --name temppandoc -v \
+#           "$directory":/source jagregory/pandoc \
+#           -f markdown \
+#           -t docx README.md \
+#           -o $output.docx
+# docker rm temppandoc
+# echo "Creado fihero docx"
 
 #
 # ---

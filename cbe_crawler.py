@@ -14,7 +14,7 @@ from pandas.io.json import json_normalize
 from datetime import datetime
 from lxml import html
 
-from io import StringIO
+import io
 import os, shutil
 import argparse
 import csv
@@ -30,7 +30,7 @@ TIME_DELAY = 5
 
 OUTPUT_PATH ='output'
 CACHE_PATH ='cache'
-
+LINE = '_________________________________________________________________________________'
 # CSS Style for legislatures list
 # combobox capalegistlatura
 ID_LEGISLATURES_COMBOBOX = 'capaLegislaturas'
@@ -44,7 +44,7 @@ REGEXP_LEGISLATURE_NAME=r"^([MDCLXVI]+)?[\s]?Legislatura[\s\w]+?\([\s]+([0-9]{2}
 CLASS_LEGISLATURE_NUMBER='SUBTITULO_CONTENIDO'
 CLASS_PAGINATION = "paginacion"
 TEXT_NEXT_PAGE = u'Página Siguiente'
-TEXT_PREVIOUS_PAGE = 'Página Anterior'
+
 
 # CSS Style  and regexp for member
 CLASS_COD_PARTY = 'nombre_grupo'
@@ -58,7 +58,19 @@ CLASS_MEMBER_DATES ='dip_rojo'
 REGEXP_ENTRY_DATE = r"^Fecha alta:\s+([0-9]{2}\/[0-9]{2}\/[0-9]{4})"
 REGEXP_LEAVING_DATE = r"^Causó baja el\s+([0-9]{2}\/[0-9]{2}\/[0-9]{4})"
 
+CLASS_CV_MEMBER ='texto_dip_parte'
+REGEXP_BIRTHDAY =r'.*Nacid[oa]\s+?el\s+?([0-9]{2})\s+?de\s+?(\w+)\s+?de\s+?([0-9]{4})'
+
+
+CLASS_MAILANDWEB ='webperso_dip_parte'
+CLASS_SOCIALNETWORK = 'webperso_dip_imagen'
+
+# Regexprexion cache and control
+
 REGEXP_CACHE =r"^cache_L([0-9]+)_P([0-9]+).json"
+REGEXP_LEGISLATURE= r'idLegislatura=([0-9]+)'
+REGEXP_PAGE = r"paginaActual=([0-9]+)"
+
 # Fetchs all legislatures
 def parse_legislature_listUrl():
     """ Get all the legislatures"""
@@ -97,7 +109,7 @@ def parse_legislature(tree ,legislature_number):
         'raw_name': ''
     }
     # Get name of legislature
-    legislature_raw_name = tree.cssselect('div.%s' % CLASS_LEGISLATURE_NAME )[0].text
+    legislature_raw_name = tree.cssselect('div.%s' % CLASS_LEGISLATURE_NAME)[0].text
     legislature_start_year= ''
     legislature_end_year= ''
     # print (legislature_raw_name)
@@ -122,7 +134,7 @@ def parse_legislature(tree ,legislature_number):
     return legislature
 
 # Fetch legislature's members per page
-def parse_members(url ,result):
+def parse_members(url):
     """ Get all legislature's members per page"""
     try:
 
@@ -130,32 +142,27 @@ def parse_members(url ,result):
         if source.status_code is not 200:
             source.raise_for_status()
         else:
-            # Initializing control variables
-            result['next_page']= ""
-            result['previous_page']= ""
-            result['current_page'] += 1
+            # Initializing members
             members = []
-
             tree = html.fromstring(source.content)
 
             # Get page to fecht members
-            legislature_number = get_legislature(url)
 
+            legislature_number = get_legislature(url)
+            page_number = get_page(url)
 
             # Get legislature's data
             # print(url)
             legislature = parse_legislature(tree, legislature_number)
-            print ("Collection data from Legislature %i: page %i" % (int(legislature_number), int(result['current_page'])))
+
+            print (LINE)
+            print ("Collection data from Legislature %i: page %i" % (legislature_number, page_number))
+            print (url)
+            print (LINE)
+
 
             # Get next and previous links
             pagination = tree.cssselect('div.%s ul a' % ( CLASS_PAGINATION ))
-
-            for item in pagination:
-                if (item.text == TEXT_NEXT_PAGE):
-                    result['next_page']=item.attrib.get('href')
-                elif (item.text == TEXT_PREVIOUS_PAGE):
-                    result['previous_page']= item.attrib.get('href')
-            print (result['next_page'])
 
             # Get list of members from class
             list=tree.cssselect('div.%s a' %  CLASS_MEMBERS_LIST)
@@ -166,9 +173,8 @@ def parse_members(url ,result):
                     'url': ''
                 }
                 member['name'] =check_field(item.text)
-                #print (member['name'])
+                print (member['name'])
                 member['legislature']=check_field(legislature)
-
                 member['url'] = '%s%s' %( WEB_URL, item.attrib['href'])
                 # Getting member's data
                 # Wait TIME_DELAY seconds before a new request
@@ -176,23 +182,22 @@ def parse_members(url ,result):
                 # Get member's data
                 member = parse_member(member)
                 members.append(member)
-            result['members']=members
-
-        # Next Page
-        if (result['next_page'] != ""):
             # Save cache files
-            saveJSON( CACHE_PATH, ("cache_L%s_P%s" % (legislature_number, result['current_page']) ),  result['members'])
-            # Clear members
-            result['members'] =[]
-            # Wait TIME_DELAY seconds before a new request
-            wait()
-            result=parse_members(result['next_page'], result)
-        # Finishing control variables
-        result['members']= []
-        result['next_page']= ""
-        result['previous_page']= ""
-        result['current_page'] = 0
-        return result
+            saveJSON( CACHE_PATH, ("cache_L%s_P%s" % (legislature_number, page_number) ),  members)
+            # Get next url
+            for item in pagination:
+                # Parsing next url in
+                if (item.text == TEXT_NEXT_PAGE and "paginaActual" in item.attrib.get('href')):
+                    next_url=item.attrib.get('href')
+                    # print ("------%s--------%s" % ( item.text, next_url))
+                else:
+                    next_url=""
+            # Go next Page
+            if (next_url !=""):
+                # Wait TIME_DELAY seconds before a new request
+                wait()
+                members=parse_members(next_url)
+        return members
     except requests.exceptions.HTTPError as err:
         print (err)
         sys.exit(1)
@@ -211,7 +216,12 @@ def parse_member(member):
             member['party']['name'] , member['party']['url']=parse_party(tree)
             # Get Province
             member['province']=parse_province(tree)
-
+            # Get Birthday
+            member['birthday']=parse_birthday(tree)
+            # Get mail and web
+            member['mail'], member['web']=parse_mailandweb(tree)
+            # Get data social network
+            member['social']=parse_socialnetwork(tree)
             # Get Entry Date and Leaving date
             member['dates']=parse_member_dates(tree)
             # Return member's data
@@ -242,7 +252,7 @@ def parse_party(tree):
     return name, url
 
 
-# Parsing party name and url
+# Parsing province
 def parse_province(tree):
     candidates = tree.cssselect('div.%s' % CLASS_PARTY)
     name = ""
@@ -257,7 +267,64 @@ def parse_province(tree):
     # Check if name and url from party exist
     name = check_field(name)
     return name
+# Parsing birthday
+def parse_birthday(tree):
+    candidates = tree.cssselect('div.%s ul li' % CLASS_CV_MEMBER)
+    birthday = {
+        "day": 0,
+        "month": 0,
+        "year": 0
+    }
+    for candidate in candidates:
+        text= str(candidate.text)
+        regex = REGEXP_BIRTHDAY
+        matches = re.finditer(regex, text, re.MULTILINE)
+        for m in matches:
+            birthday['day']= m.group(1)
+            birthday['month']= m.group(2)
+            birthday['year']= m.group(3)
+        print(birthday)
+    return birthday
 
+
+# Parsing mail and web
+def parse_mailandweb(tree):
+    candidates = tree.cssselect('div.%s a' % CLASS_MAILANDWEB)
+    mail =""
+    web =""
+    for candidate in candidates:
+        text = candidate.xpath('substring-after(@href, "mailto:")')
+        if (text):
+            mail =text
+        # And not contain abrirAgenda
+        elif not(re.search("abrirAgenda",candidate.attrib.get('href'))):
+            web = candidate.xpath('@href')[0]
+    return mail , web
+
+def parse_socialnetwork(tree):
+    candidates = tree.iterlinks()
+
+    social = {
+      "facebook": "",
+      "twitter": "",
+      "linkedin": ""
+    }
+
+    for candidate in candidates:
+        url = candidate[2]
+        #  Find url facebook but not cotains congreso
+        facebook=get_sociallink("facebook.com", url)
+        if (facebook):
+            social["facebook"]=facebook
+        twitter= get_sociallink("twitter.com", url)
+        if (twitter):
+            social["twitter"]=twitter
+        linkedin=get_sociallink("linkedin.com", url)
+        if (linkedin):
+            social["linkedin"]=linkedin
+
+
+    return social
 # Parsing member's date
 def parse_member_dates(tree):
     # Initializing object json
@@ -287,41 +354,51 @@ def parse_member_dates(tree):
     member_dates["leaving_date"] = check_field(leaving_date)
     return member_dates
 
-# Otra llamada
-def parse_anything():
-    """ Get all the legislatures"""
-    try:
-        source = requests.get(BASE_URL, headers = {'User-Agent': USER_AGENT}, stream = True)
-        if source.status_code is not 200:
-            source.raise_for_status()
-        else:
-            print ("Éxito: %s" %(source))
-    except requests.exceptions.HTTPError as err:
-        print (err)
-        sys.exit(1)
-
 # Create url per legislature
 def replace_legislature(url, legislature):
     """ Change ${legislature} string to number of legislature """
     # url: url string with one ${legislature} field
     # legistature: number of lesgislature to replace
     url = url.replace('${legislature}', str(legislature))
-    #url = re.sub(r'(.+)(\${legislature})(.+)?',r'\1%s\3' %% (legislature) , url)
     return url
 
 # get number of legislatures
 
 def get_legislature(url):
-    result = 0
-    result= re.findall(r'idLegislatura=(\d+)', url)[0]
-    return result
+    try:
+        result= re.findall(REGEXP_LEGISLATURE, url)[0]
+        if (result==[]):
+            result = 0
+        return int(result)
+    except IndexError:
+        print ("Legislature error in %s" % url)
+        exit(1)
+# get number of page
 
+def get_page(url):
+    try:
+        result= re.findall(REGEXP_PAGE, url)[0]
+        if (result==[]):
+            result = 0
+        return int(result)
+    except IndexError:
+        print ("Page error in %s" % url)
+        exit(1)
+
+# Set Not found to elements
 def check_field(field):
     if (field == ""):
         return "Not Found"
     else:
         return field
 
+# Get social network from link
+def get_sociallink(social, text):
+    result =""
+    regexp = r'http[s]?:\/\/(www.)?%s/' % social
+    if (re.search(regexp,text) and not (re.search('congreso', text, re.IGNORECASE))):
+        result=text
+    return result
 # Wait TIME_DELAY seconds before a new request
 def wait():
     time.sleep(time_delay)
@@ -356,14 +433,19 @@ def check_cache():
                 legislature= int(m.group(1))
             data['legislature'].append(int(m.group(1)))
             data['page'].append(int(m.group(2)))
-    df = pd.DataFrame(data=data)
-    summary=df.groupby(['legislature'])['page'].max()
-    page = summary[legislature]
-    print ("Cache Information")
-    print ("-----------------------------")
-    print(summary)
-    print ("-----------------------------")
-    print ("Selected Legislature=%i Page=%i" %(legislature, page))
+
+    if (data['legislature']!=[]):
+        df = pd.DataFrame(data=data)
+        summary=df.groupby(['legislature'])['page'].max()
+        page = summary[legislature]
+        print (LINE)
+        print ("Cache Information")
+        print (LINE)
+        print(summary)
+        print ("Selected Cache Legislature=%i Page=%i" %(legislature, page))
+        print (LINE)
+    else:
+        print ("Not cache")
     return legislature, page
 
 # Collect all data from cache files
@@ -387,9 +469,11 @@ def read_cache():
 def saveJSON(directory, file, object):
     # Json Output
     filename = './%s/%s.%s' % (directory, file, "json")
-    with open( filename , 'w') as outfile:
-        json.dump(object, outfile)
-# SAVE object CSV
+    with io.open( filename , 'w', encoding='utf8') as outfile:
+        data=json.dumps(object, indent=4, ensure_ascii=False)
+        outfile.write(str(data))
+
+# SAVE table CSV
 def saveCSV(directory, file, object):
     filename = './%s/%s.%s' % (directory, file, "csv")
     df = json_normalize(out)
@@ -407,18 +491,19 @@ parser.add_argument('-t', '--time', type = int, default=TIME_DELAY, help = 'Time
 parser.add_argument('-f', '--format', type = str, default ='csv', const='csv', nargs='?', choices=['json', 'csv', 'all'], help = 'output format. Supported formats ("json", "csv")')
 parser.add_argument('-o', '--output', type = str, default='data', help = 'file name. All files will be save on output directory')
 parser.add_argument('-ls', '--list',  action='store_true', help = 'Get number and name of legislatures')
+parser.add_argument('-c', '--cache',  action='store_true', help = 'Show cache status')
 parser.add_argument('-p', '--prune',  action='store_true', help = 'Clear cache before launch web scrapping')
 
 args = parser.parse_args()
-# Checking cache
-cache_legislature, cache_page = check_cache()
+# Initializing parameters
 legislature = args.legislature
 end_legislature = args.end_legislature
 time_delay = args.time
 format = args.format
 output = args.output
 
-
+# Checking cache
+cache_legislature, cache_page = check_cache()
 
 legislatures , listUrl = parse_legislature_listUrl()
 
@@ -430,16 +515,19 @@ if (args.list):
 
 # Check to clean cache
 if (args.prune):
-    check_cache()
-    #read_cache()
-    # remove_cache()
+    remove_cache()
+
+
+# Show cache status
+if (args.cache):
+    read_cache()
     sys.exit(0)
 
 
 # Initaal range
 range = sorted([ i  for i in legislatures])
 
-if legislature !=0:
+if legislature !=0 and end_legislature !=0 :
     try:
         if (legislature > end_legislature and end_legislature != 0):
             raise ValueError()
@@ -456,47 +544,47 @@ try:
 except ValueError:
      print ("Cache page number %i is not between collecting range" % l)
      exit(1)
-
-if (end_legislature !=0):
-    # Create range between input range
-     range = arange(int(legislature), int(end_legislature)+1)
-
-
-print ("Collecting Range: %s" % range)
-# Initializing variables
-result = {
-    'members': [],
-    'next_page': '',
-    'previous_page': '',
-    'current_page': 0
-}
+try:
+    if (end_legislature !=0):
+        # Create range between input range
+         range = arange(int(legislature), int(end_legislature)+1)
 
 
+    print ("Collecting Range: %s" % range)
 
-#  Collect data from each legislature
-for i in range:
+    #  Collect data from each legislature
+    for i in range:
 
-    url = replace_legislature(listUrl, i)
-    # Overwrite current_page with cache value
-    if (cache_page!=0):
-        result['current_page']=cache_page
-        url = ( "%s&paginaActual=%s" % (url, result['current_page']))
+        url = replace_legislature(listUrl, i)
+        # Overwrite next page url with cache status
+        if (cache_page!=0):
+            url = ( "%s&paginaActual=%s" % (url, cache_page))
+            cache_page = 0
+        else:
+            # Add next_page to 0
+            url= ("%s&paginaActual=0" % url)
 
-    # print(url)
-    # Wait TIME_DELAY seconds before a new request
-    wait()
-    result= parse_members(url, result)
-# Collect all data from cache
-out = read_cache()
-if ( format == 'json'):
-    # Json Output
-    saveJSON(OUTPUT_PATH, output,  out)
-elif (format == 'csv'):
-    # CSV Output
-    df = json_normalize(out)
-    df.to_csv(filename, index=False)
-else:
-    # Json Output
-    saveJSON(OUTPUT_PATH, output, out)
-    # CSV Output
-    saveCSV(OUTPUT_PATH, output, out)
+
+        # print(url)
+        # Wait TIME_DELAY seconds before a new request
+        wait()
+        result= parse_members(url)
+    # Collect all data from cache
+    out = read_cache()
+    if ( format == 'json'):
+        # Json Output
+        saveJSON(OUTPUT_PATH, output,  out)
+    elif (format == 'csv'):
+        # CSV Output
+        df = json_normalize(out)
+        df.to_csv(filename, index=False)
+    else:
+        # Json Output
+        saveJSON(OUTPUT_PATH, output, out)
+        # CSV Output
+        saveCSV(OUTPUT_PATH, output, out)
+    # remove_cache()
+    print ("Finished Web scraping")
+except:
+    print ("Webscraping Error: %s" % str(sys.exc_info()))
+    exit(1)
