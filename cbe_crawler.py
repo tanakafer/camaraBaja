@@ -8,7 +8,7 @@ import time
 import json
 import pandas as pd
 from numpy import arange
-
+from urllib import robotparser, error
 
 from pandas.io.json import json_normalize
 from datetime import datetime
@@ -75,6 +75,11 @@ REGEXP_PAGE = r"paginaActual=([0-9]+)"
 def parse_legislature_listUrl():
     """ Get all the legislatures"""
     try:
+        # Check if url it's allowed by robots.text
+        global rp
+        if not (rp.can_fetch(USER_AGENT, BASE_URL)):
+            raise requests.exceptions.HTTPError (404, BASE_URL, "Not allow by Robots")
+
         result = {}
         source = requests.get(BASE_URL, headers = {'User-Agent': USER_AGENT}, stream = True)
         if source.status_code is not 200:
@@ -137,7 +142,10 @@ def parse_legislature(tree ,legislature_number):
 def parse_members(url):
     """ Get all legislature's members per page"""
     try:
-
+        # Check if url it's allowed by robots.text
+        global rp
+        if not (rp.can_fetch(USER_AGENT, url)):
+            raise requests.exceptions.HTTPError (404, url, "Not allow by Robots")
         source = requests.get(url, headers = {'User-Agent': USER_AGENT}, stream = True)
         if source.status_code is not 200:
             source.raise_for_status()
@@ -202,10 +210,16 @@ def parse_members(url):
         print (err)
         sys.exit(1)
 
+
 # Fectch member's data
 def parse_member(member):
     """ Get member's data"""
     try:
+        # Check if url it's allowed by robots.text
+        global rp
+        if not (rp.can_fetch(USER_AGENT, url)):
+            raise requests.exceptions.HTTPError (404, url, "Not allow by Robots")
+
         source = requests.get(member['url'], headers = {'User-Agent': USER_AGENT}, stream = True)
         if source.status_code is not 200:
             source.raise_for_status()
@@ -502,10 +516,30 @@ time_delay = args.time
 format = args.format
 output = args.output
 
+
+
+# Check robots.txt
+
+rp = robotparser.RobotFileParser()
+rp.set_url("%s/robots.txt" % WEB_URL)
+rp.read()
+# Get crawl_delay
+try:
+    crawl_delay=rp.crawl_delay(USER_AGENT)
+    if time_delay < crawl_delay:
+        raise Exception ()
+except:
+    print ("Time delay has to be bigger than %i seconds" % crawl_delay)
+    sys.exit(1)
+
+
 # Checking cache
 cache_legislature, cache_page = check_cache()
 
 legislatures , listUrl = parse_legislature_listUrl()
+
+
+
 
 # Check to list all the legislatures
 if (args.list):
@@ -533,7 +567,7 @@ if legislature !=0 and end_legislature !=0 :
             raise ValueError()
     except ValueError:
         print ("End number of legislature has to be lower than legislature")
-        exit(1)
+        sys.exit(1)
 # Overwrite range with cache legislature value
 try:
      if ((cache_legislature in range) == True):
@@ -543,7 +577,7 @@ try:
          raise ValueError()
 except ValueError:
      print ("Cache page number %i is not between collecting range" % l)
-     exit(1)
+     sys.exit(1)
 try:
     if (end_legislature !=0):
         # Create range between input range
@@ -585,6 +619,10 @@ try:
         saveCSV(OUTPUT_PATH, output, out)
     remove_cache()
     print ("Finished Web scraping")
+
+except error.URLError as e:
+    print ("% Page not allowed : %S" % (e.code, e.url))
+    sys.exit(1)
 except:
     print ("Webscraping Error: %s" % str(sys.exc_info()))
-    exit(1)
+    sys.exit(1)

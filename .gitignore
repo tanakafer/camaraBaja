@@ -105,7 +105,7 @@ venv.bak/
 
 # output pandoc
 
-*.pdf
+
 *.docx
 
 # cache temp

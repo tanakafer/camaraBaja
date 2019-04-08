@@ -43,6 +43,8 @@ Desde esta página inicial se va recorriendo el listado de cada una de las legis
 
 Esta información se tendrá que recopilar de nuevo cada vez que se produzcan unas nuevas elecciones en España
 
+## Descripción del Dataset
+
 Cada informe que  se obtiene consta de los siguientes atributos
 
 Atributo | Descripción|
@@ -67,6 +69,9 @@ legislature.end_year | Año de finalización de la legislatura|
 legislature.number | Número de la legistatura|
 legislature.raw_name | Nombre de la legislatura completo|
 legislature.roman_number | Número romano de la legislatura|
+
+Los datos han sido recogidos en bruto y por lo tanto pueden tener inconsistencias.
+
 # Agradecimientos
 Agradecimemientos  a la [página oficial de Congreso de los Diputados de España](www.congreso.es) por mantener la información de todos los diputados.
 
