@@ -77,7 +77,9 @@ Agradecimemientos  a la [página oficial de Congreso de los Diputados de España
 
 Sin este mantenimiento no podríamos haber realizado este trabajo.
 
-A [Stackoverflow](https://stackoverflow.com/) por esta base de datos de conocimento que nos ayuda a solventar diariamente a los  pequeños y grandes duda que surgen durante la programación.
+Además por haber incluido el fichero robots.txt para ayudarnos a evitar posibles caídas de las página web y orientarnos para evitar acceder a información obsoleta.
+
+A [Stackoverflow](https://stackoverflow.com/) por esta base de datos de conocimiento que nos ayuda a solventar diariamente a los  pequeños y grandes duda que surgen durante la programación.
 
 A [regex101](https://regex101.com/) por hacer más sencillo la creación de expresiones regulares.
 
@@ -87,6 +89,13 @@ A [regex101](https://regex101.com/) por hacer más sencillo la creación de expr
 La noticias tanto vía web, televisión o prensa escrita que informan diariamente de la situación política.
 
 Especialmente en época electoral donde aparece la información y gráficos comparando la situación actual del Congreso con las encuestas generadas.
+
+Revisando la información que aparece en las páginas web de los periódicos, en la mayoría de los casos se da únicamente la información de como está conformada la cámara  en porcentaje según los partidos políticos, pero no hay una lista con nombres de los miembros.
+
+Este dataset tiene la intención de añadir más información a dichos dataset. Por eso se recogen los nombres, datos de contacto, fecha de nacimiento y fecha de alta y baja en la cámara. Con esta información podemos ayudar a dar más información a aquellas personas que le interesen, como cuál es la edad media de la cámara, cuanto es el tiempo promedio de los congresistas en el parlamento. Si hay algún cambio de partido por parte de un miembro.
+
+Además, se han añadido la información de las páginas web, correo, redes sociales para ver como estas herramientas se están introduciendo en los órganos del gobierno y si fuera de interés para poder seguir les en dichas redes sociales.
+
 
 # Licencia
 
